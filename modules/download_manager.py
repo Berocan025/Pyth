@@ -7,18 +7,20 @@ import time
 import shutil
 from pathlib import Path
 import re
+import platform
 from config import Config
 from modules.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
 class DownloadManager:
-    """Video indirme yönetim sınıfı"""
+    """Video indirme yönetim sınıfı - Windows Server 2022 uyumlu"""
     
     def __init__(self):
         self.download_path = Config.DOWNLOAD_PATH
         self.preferred_quality = Config.PREFERRED_QUALITY
         self.db_manager = DatabaseManager()
+        self.is_windows = platform.system() == 'Windows'
         
         # Downloads klasörünü oluştur
         os.makedirs(self.download_path, exist_ok=True)
@@ -107,6 +109,9 @@ class DownloadManager:
             # Çıkış dosya formatı
             output_template = os.path.join(self.download_path, f"{safe_title}.%(ext)s")
             
+            # WebDriver yolu
+            webdriver_path = self._get_webdriver_path()
+            
             # yt-dlp konfigürasyonu
             ydl_opts = {
                 'outtmpl': output_template,
@@ -120,9 +125,9 @@ class DownloadManager:
                 'audioformat': 'mp3',
                 'embed_thumbnail': True,
                 'addmetadata': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                     'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
                     'Accept-Encoding': 'gzip, deflate',
@@ -136,6 +141,10 @@ class DownloadManager:
                 'http_chunk_size': 10485760,  # 10MB chunks
                 'concurrent_fragment_downloads': 4
             }
+            
+            # Windows için ek ayarlar
+            if self.is_windows and webdriver_path:
+                ydl_opts['webdriver_executable_path'] = webdriver_path
             
             # Hook'ları ekle
             ydl_opts['progress_hooks'] = [self._progress_hook]
@@ -181,6 +190,44 @@ class DownloadManager:
             logger.error(f"yt-dlp indirme hatası: {str(e)}")
             return {'success': False, 'error': str(e)}
     
+    def _get_webdriver_path(self) -> Optional[str]:
+        """WebDriver yolunu bulur"""
+        if not self.is_windows:
+            return None
+        
+        try:
+            # Chrome WebDriver arama
+            chrome_paths = [
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                r"C:\Users\{}\AppData\Local\Google\Chrome\Application\chrome.exe".format(os.getenv('USERNAME', '')),
+                "chrome.exe"  # PATH'te varsa
+            ]
+            
+            for path in chrome_paths:
+                if os.path.exists(path) or (path == "chrome.exe" and shutil.which("chrome")):
+                    logger.info(f"Chrome bulundu: {path}")
+                    return path
+            
+            # Edge WebDriver arama
+            edge_paths = [
+                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+                "msedge.exe"  # PATH'te varsa
+            ]
+            
+            for path in edge_paths:
+                if os.path.exists(path) or (path == "msedge.exe" and shutil.which("msedge")):
+                    logger.info(f"Edge bulundu: {path}")
+                    return path
+            
+            logger.warning("Chrome veya Edge bulunamadı")
+            return None
+            
+        except Exception as e:
+            logger.error(f"WebDriver arama hatası: {str(e)}")
+            return None
+    
     def _get_format_selector(self) -> str:
         """Format seçici oluşturur"""
         # Kalite tercihi
@@ -213,8 +260,12 @@ class DownloadManager:
         for old, new in replacements.items():
             filename = filename.replace(old, new)
         
-        # Geçersiz karakterleri kaldır
-        filename = re.sub(r'[<>:"/\\|?*]', '', filename)
+        # Windows için geçersiz karakterleri kaldır
+        if self.is_windows:
+            filename = re.sub(r'[<>:"/\\|?*]', '', filename)
+        else:
+            filename = re.sub(r'[<>:"/\\|?*]', '', filename)
+        
         filename = re.sub(r'\s+', ' ', filename).strip()
         
         # Maksimum 100 karakter
@@ -257,7 +308,8 @@ class DownloadManager:
             output_file = os.path.join(self.download_path, f"{safe_title}_converted.mp4")
             
             # FFmpeg var mı kontrol et
-            if not self._check_ffmpeg():
+            ffmpeg_path = self._get_ffmpeg_path()
+            if not ffmpeg_path:
                 logger.warning("FFmpeg bulunamadı, dosya dönüştürme yapılamıyor")
                 return input_file  # Orijinal dosyayı döndür
             
@@ -265,7 +317,7 @@ class DownloadManager:
             
             # FFmpeg komutu
             cmd = [
-                'ffmpeg',
+                ffmpeg_path,
                 '-i', input_file,
                 '-c:v', 'libx264',  # H.264 codec
                 '-c:a', 'aac',      # AAC audio
@@ -289,6 +341,8 @@ class DownloadManager:
                 # Yeni dosyayı yeniden adlandır
                 final_output = os.path.join(self.download_path, f"{safe_title}.mp4")
                 try:
+                    if os.path.exists(final_output):
+                        os.remove(final_output)
                     os.rename(output_file, final_output)
                     return final_output
                 except Exception:
@@ -301,10 +355,52 @@ class DownloadManager:
             logger.error(f"MP4 dönüştürme hatası: {str(e)}")
             return input_file
     
+    def _get_ffmpeg_path(self) -> Optional[str]:
+        """FFmpeg yolunu bulur"""
+        try:
+            if self.is_windows:
+                # Windows için FFmpeg arama
+                ffmpeg_paths = [
+                    r"C:\ffmpeg\bin\ffmpeg.exe",
+                    r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+                    r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
+                    os.path.join(os.getcwd(), "ffmpeg.exe"),  # Proje klasörü
+                    "ffmpeg.exe"  # PATH'te varsa
+                ]
+                
+                for path in ffmpeg_paths:
+                    if os.path.exists(path):
+                        logger.info(f"FFmpeg bulundu: {path}")
+                        return path
+                    elif path == "ffmpeg.exe" and shutil.which("ffmpeg"):
+                        logger.info("FFmpeg PATH'te bulundu")
+                        return "ffmpeg"
+                
+                logger.warning("FFmpeg bulunamadı. Lütfen FFmpeg'i yükleyin:")
+                logger.warning("1. https://ffmpeg.org/download.html#build-windows")
+                logger.warning("2. ffmpeg.exe dosyasını proje klasörüne koyun")
+                logger.warning("3. Veya sistem PATH'ine ekleyin")
+                return None
+            else:
+                # Linux için
+                result = subprocess.run(['which', 'ffmpeg'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    return result.stdout.strip()
+                else:
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"FFmpeg arama hatası: {str(e)}")
+            return None
+    
     def _check_ffmpeg(self) -> bool:
         """FFmpeg kurulu mu kontrol eder"""
         try:
-            result = subprocess.run(['ffmpeg', '-version'], capture_output=True, timeout=10)
+            ffmpeg_path = self._get_ffmpeg_path()
+            if not ffmpeg_path:
+                return False
+            
+            result = subprocess.run([ffmpeg_path, '-version'], capture_output=True, timeout=10)
             return result.returncode == 0
         except Exception:
             return False
@@ -312,24 +408,32 @@ class DownloadManager:
     def install_ffmpeg(self) -> bool:
         """FFmpeg kurulumunu yapar"""
         try:
-            logger.info("FFmpeg kuruluyor...")
-            
-            # Ubuntu/Debian için kurulum
-            result = subprocess.run(['sudo', 'apt', 'update'], capture_output=True, timeout=300)
-            if result.returncode != 0:
-                logger.error("apt update başarısız")
-                return False
-            
-            result = subprocess.run(['sudo', 'apt', 'install', '-y', 'ffmpeg'], 
-                                  capture_output=True, timeout=600)
-            
-            if result.returncode == 0:
-                logger.info("FFmpeg başarıyla kuruldu")
-                return True
+            if self.is_windows:
+                logger.info("Windows için FFmpeg manuel kurulum gerekli:")
+                logger.info("1. https://www.gyan.dev/ffmpeg/builds/ adresine gidin")
+                logger.info("2. 'Windows builds by BtbN' bölümünden 'ffmpeg-master-latest-win64-gpl.zip' indirin")
+                logger.info("3. Zip dosyasını açın ve 'bin' klasöründeki ffmpeg.exe'yi proje klasörüne kopyalayın")
+                logger.info("4. Veya ffmpeg'i sistem PATH'ine ekleyin")
+                return False  # Manuel kurulum gerekli
             else:
-                logger.error(f"FFmpeg kurulum hatası: {result.stderr}")
-                return False
+                logger.info("FFmpeg kuruluyor...")
                 
+                # Ubuntu/Debian için kurulum
+                result = subprocess.run(['sudo', 'apt', 'update'], capture_output=True, timeout=300)
+                if result.returncode != 0:
+                    logger.error("apt update başarısız")
+                    return False
+                
+                result = subprocess.run(['sudo', 'apt', 'install', '-y', 'ffmpeg'], 
+                                      capture_output=True, timeout=600)
+                
+                if result.returncode == 0:
+                    logger.info("FFmpeg başarıyla kuruldu")
+                    return True
+                else:
+                    logger.error(f"FFmpeg kurulum hatası: {result.stderr}")
+                    return False
+                    
         except Exception as e:
             logger.error(f"FFmpeg kurulum hatası: {str(e)}")
             return False
@@ -341,6 +445,12 @@ class DownloadManager:
                 'quiet': True,
                 'no_warnings': True
             }
+            
+            # Windows için WebDriver ekle
+            if self.is_windows:
+                webdriver_path = self._get_webdriver_path()
+                if webdriver_path:
+                    ydl_opts['webdriver_executable_path'] = webdriver_path
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -407,7 +517,8 @@ class DownloadManager:
                 'file_count': file_count,
                 'total_size': total_size,
                 'total_size_gb': round(total_size / (1024**3), 2),
-                'download_path': self.download_path
+                'download_path': self.download_path,
+                'platform': 'Windows' if self.is_windows else 'Linux'
             }
             
         except Exception as e:
@@ -416,5 +527,6 @@ class DownloadManager:
                 'file_count': 0,
                 'total_size': 0,
                 'total_size_gb': 0,
-                'download_path': self.download_path
+                'download_path': self.download_path,
+                'platform': 'Windows' if self.is_windows else 'Linux'
             }
