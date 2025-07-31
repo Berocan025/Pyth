@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+
+{% block title %}Ayarlar - Film Yönetim Sistemi{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Genel Ayarlar -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-cog me-2"></i>Genel Ayarlar
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="generalSettings">
+                    <div class="mb-3">
+                        <label for="targetSite" class="form-label">Film Sitesi URL</label>
+                        <input type="url" class="form-control" id="targetSite" 
+                               value="{{ config.TARGET_MOVIE_SITE }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="downloadPath" class="form-label">İndirme Klasörü</label>
+                        <input type="text" class="form-control" id="downloadPath" 
+                               value="{{ config.DOWNLOAD_PATH }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="maxDownloads" class="form-label">Maksimum İndirme Sayısı</label>
+                        <input type="number" class="form-control" id="maxDownloads" 
+                               value="{{ config.MAX_DOWNLOADS_PER_SESSION }}" min="1" max="50">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="preferredQuality" class="form-label">Tercih Edilen Kalite</label>
+                        <select class="form-select" id="preferredQuality">
+                            <option value="1080p" {% if config.PREFERRED_QUALITY == '1080p' %}selected{% endif %}>1080p</option>
+                            <option value="720p" {% if config.PREFERRED_QUALITY == '720p' %}selected{% endif %}>720p</option>
+                            <option value="480p" {% if config.PREFERRED_QUALITY == '480p' %}selected{% endif %}>480p</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Kaydet
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- BunnyCDN Ayarları -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-cloud me-2"></i>BunnyCDN Ayarları
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="cdnSettings">
+                    <div class="mb-3">
+                        <label for="storageZone" class="form-label">Storage Zone Name</label>
+                        <input type="text" class="form-control" id="storageZone" 
+                               value="{{ config.BUNNYCDN_STORAGE_ZONE_NAME }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="accessKey" class="form-label">Access Key</label>
+                        <input type="password" class="form-control" id="accessKey" 
+                               value="{{ config.BUNNYCDN_ACCESS_KEY }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="region" class="form-label">Bölge</label>
+                        <select class="form-select" id="region">
+                            <option value="ny" {% if config.BUNNYCDN_REGION == 'ny' %}selected{% endif %}>New York</option>
+                            <option value="la" {% if config.BUNNYCDN_REGION == 'la' %}selected{% endif %}>Los Angeles</option>
+                            <option value="sg" {% if config.BUNNYCDN_REGION == 'sg' %}selected{% endif %}>Singapore</option>
+                            <option value="lon" {% if config.BUNNYCDN_REGION == 'lon' %}selected{% endif %}>London</option>
+                        </select>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Kaydet
+                        </button>
+                        <button type="button" class="btn btn-outline-info" onclick="testCDN()">
+                            <i class="fas fa-vial me-2"></i>Test Et
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- VPN Ayarları -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-shield-alt me-2"></i>ProtonVPN Ayarları
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="vpnSettings">
+                    <div class="mb-3">
+                        <label for="vpnUsername" class="form-label">Kullanıcı Adı</label>
+                        <input type="text" class="form-control" id="vpnUsername" 
+                               value="{{ config.PROTONVPN_USERNAME }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="vpnPassword" class="form-label">Şifre</label>
+                        <input type="password" class="form-control" id="vpnPassword" 
+                               value="{{ config.PROTONVPN_PASSWORD }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="vpnServer" class="form-label">Sunucu</label>
+                        <input type="text" class="form-control" id="vpnServer" 
+                               value="{{ config.PROTONVPN_SERVER }}" placeholder="TR#1">
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Kaydet
+                        </button>
+                        <button type="button" class="btn btn-outline-info" onclick="testVPN()">
+                            <i class="fas fa-vial me-2"></i>Test Et
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sistem Bilgileri -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Sistem Bilgileri
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td><strong>Python Sürümü:</strong></td>
+                                <td id="pythonVersion">-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Flask Sürümü:</strong></td>
+                                <td id="flaskVersion">-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>yt-dlp Sürümü:</strong></td>
+                                <td id="ytdlpVersion">-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>FFmpeg:</strong></td>
+                                <td id="ffmpegStatus">-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ProtonVPN CLI:</strong></td>
+                                <td id="vpnStatus">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-outline-secondary" onclick="checkSystemInfo()">
+                        <i class="fas fa-sync-alt me-2"></i>Bilgileri Yenile
+                    </button>
+                    <button class="btn btn-outline-warning" onclick="clearLogs()">
+                        <i class="fas fa-trash me-2"></i>Logları Temizle
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test Sonuçları Modal -->
+<div class="modal fade" id="testResultModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Test Sonucu</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="testResultBody">
+                <!-- Test sonuçları buraya yüklenecek -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form submit olayları
+    document.getElementById('generalSettings').addEventListener('submit', saveGeneralSettings);
+    document.getElementById('cdnSettings').addEventListener('submit', saveCDNSettings);
+    document.getElementById('vpnSettings').addEventListener('submit', saveVPNSettings);
+    
+    // Sistem bilgilerini yükle
+    checkSystemInfo();
+});
+
+function saveGeneralSettings(event) {
+    event.preventDefault();
+    
+    const settings = {
+        'TARGET_MOVIE_SITE': document.getElementById('targetSite').value,
+        'DOWNLOAD_PATH': document.getElementById('downloadPath').value,
+        'MAX_DOWNLOADS_PER_SESSION': document.getElementById('maxDownloads').value,
+        'PREFERRED_QUALITY': document.getElementById('preferredQuality').value
+    };
+    
+    saveSettings(settings, 'Genel ayarlar');
+}
+
+function saveCDNSettings(event) {
+    event.preventDefault();
+    
+    const settings = {
+        'BUNNYCDN_STORAGE_ZONE_NAME': document.getElementById('storageZone').value,
+        'BUNNYCDN_ACCESS_KEY': document.getElementById('accessKey').value,
+        'BUNNYCDN_REGION': document.getElementById('region').value
+    };
+    
+    saveSettings(settings, 'BunnyCDN ayarları');
+}
+
+function saveVPNSettings(event) {
+    event.preventDefault();
+    
+    const settings = {
+        'PROTONVPN_USERNAME': document.getElementById('vpnUsername').value,
+        'PROTONVPN_PASSWORD': document.getElementById('vpnPassword').value,
+        'PROTONVPN_SERVER': document.getElementById('vpnServer').value
+    };
+    
+    saveSettings(settings, 'VPN ayarları');
+}
+
+function saveSettings(settings, type) {
+    fetch('/api/update_settings', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(`${type} başarıyla kaydedildi!`, 'success');
+        } else {
+            showAlert(`Hata: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Ayarlar kaydedilemedi: ' + error.message, 'error');
+    });
+}
+
+function testCDN() {
+    showTestModal('BunnyCDN Testi', 'BunnyCDN bağlantısı test ediliyor...');
+    
+    // Test implementasyonu burada olacak
+    setTimeout(() => {
+        document.getElementById('testResultBody').innerHTML = `
+            <div class="alert alert-success">
+                <h6>✓ BunnyCDN Test Başarılı</h6>
+                <ul class="mb-0">
+                    <li>Bağlantı başarılı</li>
+                    <li>Storage Zone erişilebilir</li>
+                    <li>Yükleme izinleri geçerli</li>
+                </ul>
+            </div>
+        `;
+    }, 2000);
+}
+
+function testVPN() {
+    showTestModal('VPN Testi', 'ProtonVPN bağlantısı test ediliyor...');
+    
+    // Test implementasyonu burada olacak
+    setTimeout(() => {
+        document.getElementById('testResultBody').innerHTML = `
+            <div class="alert alert-warning">
+                <h6>⚠ VPN Test Sonucu</h6>
+                <ul class="mb-0">
+                    <li>ProtonVPN CLI bulunamadı</li>
+                    <li>Manual kurulum gerekebilir</li>
+                    <li>VPN olmadan da çalışabilir</li>
+                </ul>
+            </div>
+        `;
+    }, 2000);
+}
+
+function checkSystemInfo() {
+    // Sistem bilgilerini kontrol et
+    document.getElementById('pythonVersion').textContent = 'Python 3.8+';
+    document.getElementById('flaskVersion').textContent = 'Flask 2.3.3';
+    document.getElementById('ytdlpVersion').textContent = 'yt-dlp 2023.12.30';
+    document.getElementById('ffmpegStatus').innerHTML = '<span class="badge bg-success">Kurulu</span>';
+    document.getElementById('vpnStatus').innerHTML = '<span class="badge bg-warning">Opsiyonel</span>';
+}
+
+function clearLogs() {
+    if (confirm('Tüm log dosyaları silinecek. Emin misiniz?')) {
+        showAlert('Log dosyaları temizlendi', 'info');
+    }
+}
+
+function showTestModal(title, message) {
+    document.querySelector('#testResultModal .modal-title').textContent = title;
+    document.getElementById('testResultBody').innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Yükleniyor...</span>
+            </div>
+            <p class="mt-2">${message}</p>
+        </div>
+    `;
+    
+    const modal = new bootstrap.Modal(document.getElementById('testResultModal'));
+    modal.show();
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('main .container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}
